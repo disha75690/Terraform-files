@@ -1,0 +1,47 @@
+provider "aws" {
+  region = "eu-west-3" # Change this to your desired region
+}
+ 
+resource "aws_s3_bucket" "public_bucket" {
+  bucket = "my-public-bucket-name863982655555555"(we need to chage the bucket name) # Replace with your unique bucket name
+ 
+  # Optional: Enable public access for static website hosting
+  website {
+    index_document = "index.html"
+    error_document = "error.html"
+  }
+ 
+  tags = {
+    Name        = "Public Bucket"
+    Environment = "Dev"
+  }
+}
+ 
+# Public Access Block Configuration (allows public access)
+resource "aws_s3_bucket_public_access_block" "public_access" {
+  bucket = aws_s3_bucket.public_bucket.id
+ 
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+ 
+# Bucket Policy for Public Access
+resource "aws_s3_bucket_policy" "public_policy" {
+  bucket = aws_s3_bucket.public_bucket.id
+ 
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.public_bucket.arn}/*"
+      }
+    ]
+  })
+}
+ 
+ 

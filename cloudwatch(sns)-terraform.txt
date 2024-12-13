@@ -1,0 +1,62 @@
+provider "aws" {
+
+    region = "us-east-1"  
+
+}
+
+resource "aws_instance" "firstinstance" {
+
+  ami           = "ami-05fa00d4c63e32376" # us-west-2
+
+  instance_type = "t2.micro"
+
+
+  tags = {
+
+      Name = "TF-Instance"
+
+  }
+
+}
+ 
+ 
+resource "aws_sns_topic" "topic" {
+
+  name = "topic-devaki"
+
+}
+ 
+resource "aws_sns_topic_subscription" "email-target" {
+
+  topic_arn = aws_sns_topic.topic.arn
+
+  protocol  = "email"
+
+  endpoint  = "devakiyalarathi@gmail.com"
+
+}
+
+resource "aws_cloudwatch_metric_alarm" "foobar" {
+
+  alarm_name                = "devaki"
+
+  comparison_operator       = "GreaterThanOrEqualToThreshold"
+
+  evaluation_periods        = 2
+
+  metric_name               = "CPUUtilization"
+
+  namespace                 = "AWS/EC2"
+
+  period                    = 120
+
+  statistic                 = "Average"
+
+  threshold                 = 80
+
+  alarm_description         = "This metric monitors ec2 cpu utilization"
+
+  insufficient_data_actions = []
+
+}
+ 
