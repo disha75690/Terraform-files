@@ -1,0 +1,61 @@
+provider "aws" {
+  region = "ap-south-1"
+}
+resource "aws_instance" "Kuberneteserver" {
+  ami                         = "ami-00bb6a80f01f03502"
+  instance_type               = "t2.micro"
+  security_groups             = [aws_security_group.asg.id]
+  subnet_id                   = aws_subnet.publicsubnet.id
+  associate_public_ip_address = true
+  key_name                    = "SQL"
+  tags = {
+    Name = "Kubernetes"
+  }
+}
+resource "aws_vpc" "Public" {
+  cidr_block = "172.16.0.0/16"
+  tags = {
+    Name = "Public-VPC"
+  }
+}
+resource "aws_subnet" "publicsubnet" {
+  vpc_id            = aws_vpc.Public.id
+  availability_zone = "ap-south-1a"
+  cidr_block        = "172.16.1.0/24"
+  tags = {
+    Name = "Public-Subnet"
+  }
+}
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.Public.id
+  tags = {
+    Name = "Internet-Gateway"
+  }
+}
+resource "aws_route_table" "myrt" {
+  vpc_id = aws_vpc.Public.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+}
+resource "aws_route_table_association" "myart" {
+  route_table_id = aws_route_table.myrt.id
+  subnet_id      = aws_subnet.publicsubnet.id
+ 
+}
+resource "aws_security_group" "asg" {
+  vpc_id = aws_vpc.Public.id
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = ["0.0.0.0/0"]
+    protocol    = "-1"
+  }
+}

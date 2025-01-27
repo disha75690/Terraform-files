@@ -1,0 +1,64 @@
+provider "aws" {
+  region = "us-east-1"
+}
+ 
+resource "aws_security_group" "jenkins_sg" {
+  name        = "jenkins-sg"
+  description = "Allow access to Jenkins"
+ 
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+ 
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+ 
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+resource "aws_instance" "jenkins" {
+  ami             = "ami-0ca9fb66e076a6e32"
+  instance_type   = "t2.micro"
+  key_name        = "devops"
+  security_groups = [aws_security_group.jenkins_sg.name]
+  tags = {
+    Name = "Jenkins-Server1"
+  }
+  #  resource "aws_key_pair" "jenkins_key" {
+  #   key_name   = "jenkins_key"
+  #   public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDcGwQmo0NEUdmOmk/hK9vBfmUlLyOc5H5uer3o9BSvF your_email@example.com"
+  # }
+  user_data = <<-EOF
+              #!/bin/bash
+                sudo dnf update -y
+ 
+                sudo dnf install -y java-17-amazon-corretto.x86_64
+ 
+                sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+ 
+                sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+ 
+                yum install -y maven jenkins
+ 
+                sleep 10
+ 
+                systemctl restart jenkins.service
+ 
+                systemctl enable jenkins.service
+ 
+                systemctl status jenkins.service
+              EOF
+}
+ 
