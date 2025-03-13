@@ -1,0 +1,87 @@
+provider "aws" {
+  region = "us-east-1"
+}
+
+# Variables
+variable "ami_id" {
+  description = "This describes the ami image"
+  type        = string
+  default     = "ami-063d43db0594b521b"
+}
+
+variable "instance_type" {
+  description = "The instance type"
+  type        = string
+  default     = "t2.micro" # Modify as needed
+}
+
+variable "server_port" {
+  description = "Server use this port for http requests"
+  type        = number
+  default     = 80
+}
+
+variable "ssh_port" {
+  description = "Describes the ssh port"
+  type        = number
+  default     = 22
+}
+
+variable "availability_zone" {
+  default = "us-east-1a"
+}
+
+# Security Group for EC2 instance
+resource "aws_security_group" "instance" {
+  name        = "instance-sg"
+  description = "Allow HTTP and SSH access"
+  
+  ingress {
+    from_port   = var.server_port
+    to_port     = var.server_port
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  ingress {
+    from_port   = var.ssh_port
+    to_port     = var.ssh_port
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# EC2 Instance
+resource "aws_instance" "server" {
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  vpc_security_group_ids = [aws_security_group.instance.id]
+  availability_zone      = var.availability_zone
+  tags = {
+    Name = "EC2-Server"
+  }
+  
+  user_data = <<-EOF
+                #!/bin/bash
+                sudo yum update -y
+                sudo yum install httpd -y
+                sudo systemctl start httpd
+                sudo systemctl enable httpd
+                echo "Terraform is easy!!!" > /var/www/html/index.html
+              EOF
+
+  user_data_replace_on_change = true
+}
+
+# Output Public IP of EC2 Instance
+output "public_ip" {
+  description = "The public IP address of the web server"
+  value       = aws_instance.server.public_ip
+}
