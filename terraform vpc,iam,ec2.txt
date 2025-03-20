@@ -1,0 +1,153 @@
+provider "aws" {
+  region = "us-east-1"  # Change the region as needed
+}
+
+variable "vpc_cidr" {
+  default = "10.0.0.0/16"
+}
+
+variable "subnet_cidrs" {
+  type    = list(string)
+  default = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24", "10.0.4.0/24", "10.0.5.0/24"]
+}
+resource "aws_vpc" "main" {
+  cidr_block = var.vpc_cidr
+  enable_dns_support = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "MainVPC"
+  }
+}
+
+resource "aws_subnet" "subnets" {
+  count = length(var.subnet_cidrs)
+
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.subnet_cidrs[count.index]
+  map_public_ip_on_launch = true
+  availability_zone = element(["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e"], count.index)
+
+  tags = {
+    Name = "Subnet-${count.index + 1}"
+  }
+}
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "InternetGateway"
+  }
+}
+
+resource "aws_route_table" "rt" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.gw.id
+  }
+
+  tags = {
+    Name = "PublicRouteTable"
+  }
+}
+
+resource "aws_route_table_association" "a" {
+  count = length(var.subnet_cidrs)
+  subnet_id      = element(aws_subnet.subnets[*].id, count.index)
+  route_table_id = aws_route_table.rt.id
+}
+resource "aws_security_group" "jenkins_sg" {
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "JenkinsSG"
+  }
+}
+
+resource "aws_security_group" "k8s_sg" {
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 10250
+    to_port     = 10255
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "KubernetesSG"
+  }
+}
+
+resource "aws_security_group" "docker_sg" {
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 2376
+    to_port     = 2376
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "DockerSG"
+  }
+}
+resource "aws_instance" "ec2" {
+  ami           = "ami-08b5b3a93ed654d19"  # Replace with your preferred AMI
+  instance_type = "t2.micro"
+  subnet_id     = aws_subnet.subnets[0].id
+  vpc_security_group_ids = [aws_security_group.jenkins_sg.id, aws_security_group.k8s_sg.id, aws_security_group.docker_sg.id]
+
+  tags = {
+    Name = "MyEC2Instance"
+  }
+}
+resource "aws_iam_group" "groups" {
+  count = 5
+  name  = "EC2FullAccessGroup-${count.index + 1}"
+}
+
+resource "aws_iam_policy_attachment" "ec2_full_access" {
+  count      = 5
+  name       = "EC2FullAccessAttachment-${count.index + 1}"
+  groups     = [aws_iam_group.groups[count.index].name]
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+}
